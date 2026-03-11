@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lecturer Dashboard - Smart Face Attendance</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+
+<body>
+    <div class="container" style="max-width: 1000px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>Lecturer Dashboard</h1>
+            <a href="http://localhost:8000/api/dashboard/export-csv" class="btn btn-secondary" target="_blank">Export
+                CSV Log</a>
+        </div>
+
+        <p class="text-muted">Real-time attendance statistics for today's session.</p>
+
+        <div class="dashboard-grid" style="margin-top: 2rem;">
+            <!-- Chart Container -->
+            <div style="background: #FAFAFA; padding: 2rem; border-radius: 8px; border: 1px solid #E5E7EB;">
+                <h3 style="margin-top: 0; text-align: center;">Daily Attendance Ratio</h3>
+                <canvas id="attendanceChart" width="400" height="400"></canvas>
+            </div>
+
+            <!-- Stats & Quick Actions Container -->
+            <div style="background: #FAFAFA; padding: 2rem; border-radius: 8px; border: 1px solid #E5E7EB;">
+                <h3 style="margin-top: 0;">System Status</h3>
+
+                <div style="margin: 2rem 0;">
+                    <p><strong>Face Recognition Engine:</strong> <span style="color: var(--success)">Online &
+                            Active</span></p>
+                    <p><strong>IP Validation Gateway:</strong> <span style="color: var(--success)">Secure</span></p>
+                    <p><strong>Database Connection:</strong> <span style="color: var(--success)">Connected</span></p>
+                </div>
+
+                <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 2rem 0;">
+
+                <button class="btn" style="width: 100%; margin-bottom: 1rem;" onclick="loadChartData()">Refresh
+                    Data</button>
+                <div id="statusBox" class="status-box" style="margin-bottom: 0;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:8000/api";
+        let myChart = null;
+
+        async function loadChartData() {
+            const btn = document.querySelector('.btn');
+            btn.innerText = 'Refreshing...';
+
+            try {
+                const response = await axios.get(`${API_URL}/dashboard/stats`);
+                const { labels, data } = response.data;
+
+                const ctx = document.getElementById('attendanceChart').getContext('2d');
+
+                // Destroy old instance if it exists to allow fresh redrawing
+                if (myChart) {
+                    myChart.destroy();
+                }
+
+                myChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Students',
+                            data: data,
+                            backgroundColor: [
+                                '#10B981', // Present (Green)
+                                '#EF4444'  // Absent (Red)
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            }
+                        }
+                    }
+                });
+
+                const el = document.getElementById('statusBox');
+                el.className = 'status-box success';
+                el.style.display = 'block';
+                el.innerHTML = 'Data synchronized at ' + new Date().toLocaleTimeString();
+
+            } catch (err) {
+                console.error(err);
+                const el = document.getElementById('statusBox');
+                el.className = 'status-box error';
+                el.style.display = 'block';
+                el.innerHTML = 'Failed to load dashboard statistics.';
+            } finally {
+                btn.innerText = 'Refresh Data';
+            }
+        }
+
+        // Initial Data Load
+        document.addEventListener('DOMContentLoaded', loadChartData);
+
+        // Auto-refresh every 60 seconds
+        setInterval(loadChartData, 60000);
+    </script>
+</body>
+
+</html>

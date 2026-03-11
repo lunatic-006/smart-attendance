@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Registration - Smart Face Attendance</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Student Registration</h1>
+        <p>Please fill out your details and carefully capture your face from 3 angles to register your biometric attendance profile.</p>
+
+        <div id="statusBox" class="status-box"></div>
+
+        <div class="dashboard-grid">
+            <div class="form-section">
+                <form id="registerForm">
+                    <div class="form-group">
+                        <label for="name">Full Name</label>
+                        <input type="text" id="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="roll_number">Roll Number</label>
+                        <input type="text" id="roll_number" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Student Email</label>
+                        <input type="email" id="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" required>
+                    </div>
+                </form>
+            </div>
+
+            <div class="camera-section">
+                <div class="camera-container">
+                    <video id="webcam" autoplay playsinline></video>
+                </div>
+                
+                <div class="controls">
+                    <button type="button" class="btn btn-secondary" id="btnFront">Capture Front</button>
+                    <button type="button" class="btn btn-secondary" id="btnLeft">Capture Left</button>
+                    <button type="button" class="btn btn-secondary" id="btnRight">Capture Right</button>
+                </div>
+
+                <div class="grid" style="margin-top: 1.5rem; text-align: center;">
+                    <div>
+                        <img id="previewFront" class="capture-preview" src="">
+                        <small>Front</small>
+                    </div>
+                    <div>
+                        <img id="previewLeft" class="capture-preview" src="">
+                        <small>Left</small>
+                    </div>
+                    <div>
+                        <img id="previewRight" class="capture-preview" src="">
+                        <small>Right</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 2rem; text-align: center;">
+            <button type="button" class="btn" id="btnSubmit" style="width: 100%; max-width: 300px;">Complete Registration</button>
+            <p style="margin-top: 1rem;"><a href="login.html">Already registered? Log in here.</a></p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="camera_capture.js"></script>
+    <script>
+        const API_URL = "http://localhost:8000/api";
+        const state = { front: null, left: null, right: null };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await startCamera('webcam');
+        });
+
+        function handleCapture(angle) {
+            const dataUrl = captureBase64();
+            if(!dataUrl) return;
+            state[angle] = dataUrl;
+            
+            let previewId = `preview${angle.charAt(0).toUpperCase() + angle.slice(1)}`;
+            document.getElementById(previewId).src = dataUrl;
+        }
+
+        document.getElementById('btnFront').addEventListener('click', () => handleCapture('front'));
+        document.getElementById('btnLeft').addEventListener('click', () => handleCapture('left'));
+        document.getElementById('btnRight').addEventListener('click', () => handleCapture('right'));
+
+        function showStatus(message, isError=false) {
+            const el = document.getElementById('statusBox');
+            el.className = `status-box ${isError ? 'error' : 'success'}`;
+            el.innerHTML = message;
+        }
+
+        document.getElementById('btnSubmit').addEventListener('click', async () => {
+            const name = document.getElementById('name').value;
+            const roll_number = document.getElementById('roll_number').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            if(!name || !roll_number || !email || !password) {
+                return showStatus("Please fill all text fields.", true);
+            }
+
+            if(!state.front || !state.left || !state.right) {
+                return showStatus("Please capture all 3 required face angles.", true);
+            }
+
+            try {
+                showStatus("Processing registration...");
+                // Basic hash for MVP, production should hash server-side
+                const response = await axios.post(`${API_URL}/register/student`, {
+                    name,
+                    roll_number,
+                    email,
+                    passwordHash: password, 
+                    front_image: state.front,
+                    left_image: state.left,
+                    right_image: state.right
+                });
+                
+                showStatus(`Registration successful! ID: ${response.data.student_id}. You can now login.`);
+                setTimeout(() => window.location.href = 'login.html', 2000);
+            } catch (err) {
+                showStatus(err.response?.data?.detail || "An error occurred during registration.", true);
+            }
+        });
+    </script>
+</body>
+</html>

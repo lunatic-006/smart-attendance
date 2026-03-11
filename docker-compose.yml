@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./attendance.db:/app/attendance.db
+      - ./backend:/app/backend
+    environment:
+      - PYTHONUNBUFFERED=1
