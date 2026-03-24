@@ -6,112 +6,214 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lecturer Dashboard - Smart Face Attendance</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        .class-container {
+            margin-bottom: 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .class-expandable {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out, opacity 0.4s ease, margin-top 0.4s ease;
+        }
+
+        .class-expandable.open {
+            max-height: 2000px;
+            opacity: 1;
+            margin-top: 1.5rem;
+        }
+
+        .list-group {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .list-group h3 {
+            margin-top: 0;
+            border-bottom: 1px solid var(--surface-border);
+            padding-bottom: 0.5rem;
+        }
+
+        .student-item {
+            padding: 0.5rem 0;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed rgba(255,255,255,0.1);
+        }
+        .student-item:last-child {
+            border-bottom: none;
+        }
+    </style>
 </head>
 
 <body>
-    <div class="container" style="max-width: 1000px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h1>Lecturer Dashboard</h1>
-            <a href="http://localhost:8000/api/dashboard/export-csv" class="btn btn-secondary" target="_blank">Export
-                CSV Log</a>
-        </div>
+    <!-- Floating College Background Objects -->
+    <div class="floating-objects-container">
+        <div class="floating-obj">🎓</div>
+        <div class="floating-obj">📚</div>
+        <div class="floating-obj">🏫</div>
+        <div class="floating-obj">🔬</div>
+        <div class="floating-obj">💡</div>
+        <div class="floating-obj">🎒</div>
+        <div class="floating-obj">📐</div>
+        <div class="floating-obj">📝</div>
+        <div class="floating-obj">🚌</div>
+        <div class="floating-obj">💻</div>
+        <div class="floating-obj">🎨</div>
+        <div class="floating-obj">🧪</div>
+        <div class="floating-obj">🏆</div>
+        <div class="floating-obj">📎</div>
+        <div class="floating-obj">🧠</div>
+    </div>
 
-        <p class="text-muted">Real-time attendance statistics for today's session.</p>
-
-        <div class="dashboard-grid" style="margin-top: 2rem;">
-            <!-- Chart Container -->
-            <div style="background: #FAFAFA; padding: 2rem; border-radius: 8px; border: 1px solid #E5E7EB;">
-                <h3 style="margin-top: 0; text-align: center;">Daily Attendance Ratio</h3>
-                <canvas id="attendanceChart" width="400" height="400"></canvas>
-            </div>
-
-            <!-- Stats & Quick Actions Container -->
-            <div style="background: #FAFAFA; padding: 2rem; border-radius: 8px; border: 1px solid #E5E7EB;">
-                <h3 style="margin-top: 0;">System Status</h3>
-
-                <div style="margin: 2rem 0;">
-                    <p><strong>Face Recognition Engine:</strong> <span style="color: var(--success)">Online &
-                            Active</span></p>
-                    <p><strong>IP Validation Gateway:</strong> <span style="color: var(--success)">Secure</span></p>
-                    <p><strong>Database Connection:</strong> <span style="color: var(--success)">Connected</span></p>
-                </div>
-
-                <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 2rem 0;">
-
-                <button class="btn" style="width: 100%; margin-bottom: 1rem;" onclick="loadChartData()">Refresh
-                    Data</button>
-                <div id="statusBox" class="status-box" style="margin-bottom: 0;"></div>
+    <div class="portal-wrapper" style="width: 100%; max-width: 900px; z-index: 1;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; width: 100%;">
+            <h1 style="text-shadow: 0 4px 10px rgba(0,0,0,0.5);">Lecturer Dashboard</h1>
+            <div>
+                <button onclick="seedDevClass()" class="btn btn-secondary" style="margin-right: 1rem;">[DEV] Seed Live Class</button>
+                <button onclick="logout()" class="btn btn-danger">Log Out</button>
             </div>
         </div>
+
+        <p id="welcomeMsg" style="text-align: center; margin-bottom: 2rem; font-size: 1.2rem;"></p>
+
+        <div id="sessionsContainer">
+            <!-- Dynamic Classes populated here -->
+        </div>
+
     </div>
 
     <script>
         const API_URL = "http://localhost:8000/api";
-        let myChart = null;
+        const lecturerId = localStorage.getItem("lecturer_id");
+        const lecturerName = localStorage.getItem("lecturer_name") || "Lecturer";
 
-        async function loadChartData() {
-            const btn = document.querySelector('.btn');
-            btn.innerText = 'Refreshing...';
+        if (!lecturerId) {
+            window.location.href = "index.html";
+        }
 
+        document.getElementById("welcomeMsg").innerText = `Welcome, ${lecturerName}. Select a class below to view the attendance record.`;
+
+        async function loadSessions() {
             try {
-                const response = await axios.get(`${API_URL}/dashboard/stats`);
-                const { labels, data } = response.data;
-
-                const ctx = document.getElementById('attendanceChart').getContext('2d');
-
-                // Destroy old instance if it exists to allow fresh redrawing
-                if (myChart) {
-                    myChart.destroy();
+                const res = await axios.get(`${API_URL}/lecturer/sessions?lecturer_id=${lecturerId}`);
+                const sessions = res.data.sessions;
+                const container = document.getElementById("sessionsContainer");
+                
+                if (sessions.length === 0) {
+                    container.innerHTML = `<div class="container" style="text-align:center;"><h3>No classes scheduled for today.</h3></div>`;
+                    return;
                 }
 
-                myChart = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Students',
-                            data: data,
-                            backgroundColor: [
-                                '#10B981', // Present (Green)
-                                '#EF4444'  // Absent (Red)
-                            ],
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                            }
-                        }
-                    }
+                container.innerHTML = "";
+                
+                sessions.forEach(session => {
+                    const html = `
+                        <div class="container class-container block-register" onclick="toggleSession(${session.id}, this)">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h2 style="margin: 0;">${session.class_name}</h2>
+                                <span style="font-size: 1.1rem; color: #a5b4fc;">${session.start_time} - ${session.end_time}</span>
+                            </div>
+                            
+                            <div id="expandable-${session.id}" class="class-expandable">
+                                <div style="text-align: center; padding: 2rem;" id="loading-${session.id}">
+                                    Loading attendance records...
+                                </div>
+                                <div id="report-${session.id}" style="display: none;">
+                                    <div class="list-group" style="box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.4);">
+                                        <h3 style="color: #34d399;">✅ Present (>= 80%)</h3>
+                                        <div id="present-list-${session.id}"></div>
+                                    </div>
+                                    <div class="list-group" style="box-shadow: inset 0 0 0 1px rgba(236, 72, 153, 0.4);">
+                                        <h3 style="color: #f472b6;">⚠️ Suspicious / Partial (< 80%)</h3>
+                                        <div id="suspicious-list-${session.id}"></div>
+                                    </div>
+                                    <div class="list-group" style="box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.4);">
+                                        <h3 style="color: #fb7185;">❌ Absent (0 Pings)</h3>
+                                        <div id="absent-list-${session.id}"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.insertAdjacentHTML('beforeend', html);
                 });
-
-                const el = document.getElementById('statusBox');
-                el.className = 'status-box success';
-                el.style.display = 'block';
-                el.innerHTML = 'Data synchronized at ' + new Date().toLocaleTimeString();
 
             } catch (err) {
                 console.error(err);
-                const el = document.getElementById('statusBox');
-                el.className = 'status-box error';
-                el.style.display = 'block';
-                el.innerHTML = 'Failed to load dashboard statistics.';
-            } finally {
-                btn.innerText = 'Refresh Data';
+                alert("Failed to load today's classes.");
             }
         }
 
-        // Initial Data Load
-        document.addEventListener('DOMContentLoaded', loadChartData);
+        async function toggleSession(sessionId, element) {
+            const exp = document.getElementById(`expandable-${sessionId}`);
+            
+            // Toggle
+            if (exp.classList.contains('open')) {
+                exp.classList.remove('open');
+                return; // Just closes it
+            }
+            
+            // Close all others
+            document.querySelectorAll('.class-expandable').forEach(el => {
+                if (el.id !== `expandable-${sessionId}`) el.classList.remove('open');
+            });
+            
+            exp.classList.add('open');
+            
+            // Fetch Report
+            try {
+                const res = await axios.get(`${API_URL}/lecturer/session/${sessionId}/report`);
+                const { present, suspicious, absent } = res.data;
+                
+                const buildList = (arr, color) => {
+                    if (arr.length === 0) return `<p style="color:var(--text-muted); font-style:italic;">No students in this category.</p>`;
+                    return arr.map(s => `
+                        <div class="student-item">
+                            <span><strong>${s.name}</strong> (${s.roll_number})</span>
+                            <span style="color: ${color};">${s.pings} pts</span>
+                        </div>
+                    `).join('');
+                };
 
-        // Auto-refresh every 60 seconds
-        setInterval(loadChartData, 60000);
+                document.getElementById(`present-list-${sessionId}`).innerHTML = buildList(present, '#34d399');
+                document.getElementById(`suspicious-list-${sessionId}`).innerHTML = buildList(suspicious, '#f472b6');
+                document.getElementById(`absent-list-${sessionId}`).innerHTML = buildList(absent, '#fb7185');
+
+                document.getElementById(`loading-${sessionId}`).style.display = 'none';
+                document.getElementById(`report-${sessionId}`).style.display = 'block';
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById(`loading-${sessionId}`).innerHTML = "Error fetching report.";
+            }
+        }
+
+        async function seedDevClass() {
+            try {
+                // Hardcode 60 minutes for a test lecture
+                await axios.post(`${API_URL}/dev/seed-class?lecturer_id=${lecturerId}&class_name=Computer Science 101&duration_minutes=60`);
+                alert("A mock class session has been injected and activated! Refreshing list.");
+                loadSessions();
+            } catch (err) {
+                console.error(err);
+                alert("Dev tool failed.");
+            }
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+
+        document.addEventListener('DOMContentLoaded', loadSessions);
     </script>
 </body>
-
 </html>

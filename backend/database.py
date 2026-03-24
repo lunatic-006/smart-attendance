@@ -1,71 +1,45 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Date, Time, ForeignKey, Text, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
 import os
+import sqlite3
 
-# SQLite is used for local development out-of-the-box.
-# Change string to "postgresql://user:password@localhost/dbname" for PostgreSQL
-SQLALCHEMY_DATABASE_URL = "sqlite:///./attendance.db"
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+DB_FILE = os.path.join(BASE_DIR, "database", "smart_attendance.db")
+SCHEMA_FILE = os.path.join(BASE_DIR, "database", "schema.sql")
 
-# Setting check_same_thread to False is required for SQLite and FastAPI
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in SQLALCHEMY_DATABASE_URL else {}
-)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base = declarative_base()
-
-class Course(Base):
-    __tablename__ = "courses"
-    id = Column(Integer, primary_key=True, index=True)
-    course_code = Column(String(50), unique=True, index=True)
-    course_name = Column(String(255))
-
-class Lecturer(Base):
-    __tablename__ = "lecturers"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255))
-    email = Column(String(255), unique=True, index=True)
-    password_hash = Column(String(255))
-
-class Student(Base):
-    __tablename__ = "students"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255))
-    roll_number = Column(String(100), unique=True, index=True)
-    email = Column(String(255), unique=True, index=True)
-    password_hash = Column(String(255))
-    face_encoding = Column(JSON, nullable=True) # Stores the 128-d numpy array as a JSON list
-    is_registered = Column(Boolean, default=False)
-    
-    attendance_records = relationship("AttendanceRecord", back_populates="student")
-
-class AttendanceRecord(Base):
-    __tablename__ = "attendance_records"
-    id = Column(Integer, primary_key=True, index=True)
-    student_id = Column(Integer, ForeignKey("students.id"))
-    date = Column(Date)
-    time = Column(Time)
-    status = Column(String(50)) # 'PRESENT', 'ABSENT'
-    ip_address = Column(String(50))
-    captured_image_path = Column(String(500), nullable=True)
-    
-    student = relationship("Student", back_populates="attendance_records")
-
-class AllowedNetwork(Base):
-    __tablename__ = "allowed_networks"
-    id = Column(Integer, primary_key=True, index=True)
-    network_cidr = Column(String(50)) # e.g., '192.168.1.0/24'
-    description = Column(String(255))
-
-# Dependency to get DB session
 def get_db():
-    db = SessionLocal()
+    """
+    FastAPI dependency to get a raw SQLite database connection per request.
+    Yields the connection and ensures it is closed after the request is finished.
+    """
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    # Enable dictionary-like access to rows
+    conn.row_factory = sqlite3.Row
     try:
-        yield db
+        yield conn
     finally:
-        db.close()
+        conn.close()
 
-# Create all tables function
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    """
+    Initializes database schema from schema.sql.
+    Runs once on startup.
+    """
+    # Ensure database folder exists
+    os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
+    
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # Check if a critical table like 'students' already exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='students'")
+    if not cursor.fetchone():
+        print(f"Initializing new SQLite database at {DB_FILE} using schema...")
+        if os.path.exists(SCHEMA_FILE):
+            with open(SCHEMA_FILE, "r") as f:
+                schema_script = f.read()
+            conn.executescript(schema_script)
+            print("Database initialized successfully.")
+        else:
+            print(f"Error: Schema script not found at {SCHEMA_FILE}")
+            
+    conn.commit()
+    conn.close()

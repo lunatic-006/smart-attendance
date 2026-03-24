@@ -15,17 +15,15 @@
 
         <div id="statusBox" class="status-box"></div>
 
-        <div class="camera-container" style="margin-top: 1.5rem; margin-bottom: 1.5rem;">
+        <div class="camera-container" style="display: none;">
             <video id="webcam" autoplay playsinline></video>
         </div>
 
-        <button class="btn" id="btnVerify">Verify Attendance</button>
-        <button class="btn btn-secondary" onclick="logout()" style="margin-left: 1rem;">Log Out</button>
+        <button class="btn btn-secondary" onclick="logout()" style="margin-top: 1rem;">Log Out</button>
 
-        <div style="margin-top: 2rem; padding: 1rem; background: #FEF3C7; border-radius: 6px; text-align: left; font-size: 0.9em; display: none;"
+        <div style="margin-top: 2rem; padding: 1rem; background: #d1fae5; color: #065f46; border-radius: 6px; text-align: left; font-size: 0.9em;"
             id="periodicStatus">
-            <strong>Active Session:</strong> Do not close this tab. Periodic face checks occur every 2 minutes while
-            class is in session.
+            <strong>Session Active:</strong> Your attendance is being verified automatically in the background. Please ensure this tab is open or minimized while the module runs.
         </div>
     </div>
 
@@ -35,75 +33,63 @@
         const API_URL = "http://localhost:8000/api";
         const studentId = localStorage.getItem('student_id');
         const studentName = localStorage.getItem('student_name');
+        const targetLecturerId = localStorage.getItem('target_lecturer_id');
 
         let pingInterval;
 
-        if (!studentId) {
-            window.location.href = 'login.html';
+        if (!studentId || !targetLecturerId) {
+            window.location.href = 'index.html';
         }
 
         document.getElementById('welcomeText').innerText = `Welcome, ${studentName}`;
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            await startCamera('webcam');
-        });
-
         function showStatus(message, isError = false) {
             const el = document.getElementById('statusBox');
             el.className = `status-box ${isError ? 'error' : 'success'}`;
+            if (typeof message === 'object') {
+                message = JSON.stringify(message);
+            }
             el.innerHTML = message;
         }
 
-        document.getElementById('btnVerify').addEventListener('click', async () => {
-            const captured_image = captureBase64();
-            if (!captured_image) return showStatus("Camera error.", true);
-
-            showStatus("Verifying face and IP...");
-
-            try {
-                const response = await axios.post(`${API_URL}/attendance/mark`, {
-                    student_id: parseInt(studentId),
-                    captured_image
-                });
-                showStatus(response.data.message);
-
-                // Start periodic ping only after successful initial attendance
-                document.getElementById('periodicStatus').style.display = 'block';
-                document.getElementById('btnVerify').disabled = true;
-                document.getElementById('btnVerify').innerText = "Attendance Initially Marked";
-
-                startPeriodicPing();
-
-            } catch (err) {
-                showStatus(err.response?.data?.detail || "Verification failed.", true);
-            }
+        document.addEventListener('DOMContentLoaded', async () => {
+            await startCamera('webcam');
+            showStatus(`Camera initialized. Targeting active session for Lecturer: ${targetLecturerId}...`);
+            
+            // Execute the very first verification check automatically right after logging in
+            verifyFrame();
+            
+            // Silently loop exactly every 60 seconds (1 minute interval)
+            pingInterval = setInterval(verifyFrame, 60000);
         });
 
-        function startPeriodicPing() {
-            // Ping every 2 minutes (120,000 ms)
-            pingInterval = setInterval(async () => {
-                const img = captureBase64();
-                if (!img) return; // If camera failed for a moment, skip
+        async function verifyFrame() {
+            const captured_image = captureBase64();
+            if (!captured_image) {
+                console.warn("Camera not ready for capture.");
+                return;
+            }
 
-                try {
-                    await axios.post(`${API_URL}/attendance/ping`, {
-                        student_id: parseInt(studentId),
-                        captured_image: img
-                    });
-                    console.log("Ping successful.");
-                } catch (err) {
-                    console.error("Ping failed:", err.response?.data || err.message);
-                    // Could show an alert or notification here warning the student
-                    showStatus("Warning: Periodic verification failed. Please stay in view.", true);
-                }
-            }, 120000);
+            try {
+                // Using mark endpoint so it counts initially and validates safely
+                const response = await axios.post(`${API_URL}/attendance/mark`, {
+                    student_id: studentId,
+                    target_lecturer_id: targetLecturerId,
+                    captured_image
+                });
+                showStatus("Attendance status: Active and Verified.");
+                console.log("Background Face Validation Success:", response.data);
+            } catch (err) {
+                console.error("Background Face Validation Failed:", err.response?.data || err.message);
+                showStatus("Warning: Face missing or unrecognized. Ensure you are in frame.", true);
+            }
         }
 
         function logout() {
             clearInterval(pingInterval);
             stopCamera();
             localStorage.clear();
-            window.location.href = 'login.html';
+            window.location.href = 'index.html';
         }
     </script>
 </body>
