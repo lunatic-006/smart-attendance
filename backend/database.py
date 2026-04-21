@@ -21,7 +21,7 @@ def get_db():
 def init_db():
     """
     Initializes database schema from schema.sql.
-    Runs once on startup.
+    Safe to run multiple times — uses CREATE TABLE IF NOT EXISTS and CREATE INDEX IF NOT EXISTS.
     """
     # Ensure database folder exists
     os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
@@ -29,17 +29,19 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
-    # Check if a critical table like 'students' already exists
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='students'")
-    if not cursor.fetchone():
-        print(f"Initializing new SQLite database at {DB_FILE} using schema...")
-        if os.path.exists(SCHEMA_FILE):
-            with open(SCHEMA_FILE, "r") as f:
-                schema_script = f.read()
-            conn.executescript(schema_script)
-            print("Database initialized successfully.")
-        else:
-            print(f"Error: Schema script not found at {SCHEMA_FILE}")
+    # Enable WAL journal mode for better concurrent read performance
+    cursor.execute("PRAGMA journal_mode=WAL")
+    
+    # Always run the schema script — it uses IF NOT EXISTS so it's safe
+    # This ensures new indexes and tables are created on existing databases
+    if os.path.exists(SCHEMA_FILE):
+        print(f"Applying schema from {SCHEMA_FILE}...")
+        with open(SCHEMA_FILE, "r") as f:
+            schema_script = f.read()
+        conn.executescript(schema_script)
+        print("Database schema applied successfully.")
+    else:
+        print(f"Warning: Schema script not found at {SCHEMA_FILE}")
             
     conn.commit()
     conn.close()

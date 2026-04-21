@@ -5,15 +5,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lecturer Dashboard - Smart Face Attendance</title>
+    <meta name="description" content="Lecturer dashboard for managing class sessions and viewing attendance reports.">
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <style>
         .class-container {
             margin-bottom: 2rem;
             cursor: pointer;
             transition: all 0.3s ease;
         }
-        
+
         .class-expandable {
             max-height: 0;
             opacity: 0;
@@ -28,7 +28,7 @@
         }
 
         .list-group {
-            background: rgba(0,0,0,0.2);
+            background: rgba(0, 0, 0, 0.2);
             border-radius: 8px;
             padding: 1rem;
             margin-top: 1rem;
@@ -44,10 +44,133 @@
             padding: 0.5rem 0;
             display: flex;
             justify-content: space-between;
-            border-bottom: 1px dashed rgba(255,255,255,0.1);
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
         }
+
         .student-item:last-child {
             border-bottom: none;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            margin: 10% auto;
+            padding: 2rem;
+            border: 1px solid rgba(165, 180, 252, 0.3);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #a5b4fc;
+        }
+
+        .modal-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .form-group-modal {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group-modal label {
+            color: #a5b4fc;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .form-group-modal input {
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(165, 180, 252, 0.3);
+            border-radius: 6px;
+            color: white;
+            font-size: 0.95rem;
+        }
+
+        .form-group-modal input:focus {
+            outline: none;
+            border-color: #a5b4fc;
+            box-shadow: 0 0 10px rgba(165, 180, 252, 0.3);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .modal-btn-submit {
+            background: linear-gradient(135deg, #6366f1, #818cf8);
+            color: white;
+        }
+
+        .modal-btn-submit:hover {
+            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+
+        .modal-btn-cancel {
+            background: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.5);
+        }
+
+        .modal-btn-cancel:hover {
+            background: rgba(239, 68, 68, 0.3);
         }
     </style>
 </head>
@@ -73,11 +196,47 @@
     </div>
 
     <div class="portal-wrapper" style="width: 100%; max-width: 900px; z-index: 1;">
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; width: 100%;">
+
+        <!-- Seed Class Modal -->
+        <div id="seedClassModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">Create Class Session</div>
+                <form class="modal-form" onsubmit="submitSeedClass(event)">
+                    <div class="form-group-modal">
+                        <label for="modalDate">Date:</label>
+                        <input type="date" id="modalDate" required>
+                    </div>
+                    <div class="form-group-modal">
+                        <label for="modalStartTime">Start Time:</label>
+                        <input type="time" id="modalStartTime" required>
+                    </div>
+                    <div class="form-group-modal">
+                        <label for="modalClassName">Class Name:</label>
+                        <input type="text" id="modalClassName" placeholder="e.g., Computer Science 101"
+                            value="Computer Science 101" required>
+                    </div>
+                    <div class="form-group-modal">
+                        <label for="modalClassId">Class ID (Optional):</label>
+                        <input type="text" id="modalClassId" placeholder="e.g., CS101" value="">
+                    </div>
+                    <div class="form-group-modal">
+                        <label for="modalDuration">Duration (Minutes):</label>
+                        <input type="number" id="modalDuration" min="1" value="60" required>
+                    </div>
+                    <div class="modal-buttons">
+                        <button type="submit" class="modal-btn-submit">Create Class</button>
+                        <button type="button" class="modal-btn-cancel" onclick="closeModalSeedClass()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; width: 100%;">
             <h1 style="text-shadow: 0 4px 10px rgba(0,0,0,0.5);">Lecturer Dashboard</h1>
             <div>
-                <button onclick="seedDevClass()" class="btn btn-secondary" style="margin-right: 1rem;">[DEV] Seed Live Class</button>
+                <button onclick="seedDevClass()" class="btn btn-secondary" style="margin-right: 1rem;">Create
+                    Class</button>
                 <button onclick="logout()" class="btn btn-danger">Log Out</button>
             </div>
         </div>
@@ -90,54 +249,76 @@
 
     </div>
 
+    <!-- Scripts: Appwrite SDK + our modules -->
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@16.0.0"></script>
+    <script src="appwrite-config.js"></script>
+    <script src="appwrite-db.js"></script>
     <script>
-        const API_URL = "http://localhost:8000/api";
-        const lecturerId = localStorage.getItem("lecturer_id");
+        const lecturerDocId = localStorage.getItem("lecturer_doc_id");
+        const lecturerCustomId = localStorage.getItem("lecturer_custom_id");
         const lecturerName = localStorage.getItem("lecturer_name") || "Lecturer";
 
-        if (!lecturerId) {
+        if (!lecturerDocId || !lecturerCustomId) {
             window.location.href = "index.html";
         }
 
-        document.getElementById("welcomeMsg").innerText = `Welcome, ${lecturerName}. Select a class below to view the attendance record.`;
+        // SECURITY: Use textContent for user-generated content
+        document.getElementById("welcomeMsg").textContent = `Welcome, ${lecturerName}. Select a class below to view the attendance record.`;
+
+        // SECURITY: Escape HTML entities to prevent XSS via class names
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
 
         async function loadSessions() {
             try {
-                const res = await axios.get(`${API_URL}/lecturer/sessions?lecturer_id=${lecturerId}`);
-                const sessions = res.data.sessions;
+                const sessions = await getSessionsForLecturer(lecturerCustomId);
                 const container = document.getElementById("sessionsContainer");
-                
+
                 if (sessions.length === 0) {
                     container.innerHTML = `<div class="container" style="text-align:center;"><h3>No classes scheduled for today.</h3></div>`;
                     return;
                 }
 
                 container.innerHTML = "";
-                
+
                 sessions.forEach(session => {
+                    // SECURITY: Escape all user-provided values before inserting into HTML
+                    const safeName = escapeHtml(session.class_name);
+                    const safeStartTime = escapeHtml(session.start_time);
+                    const safeEndTime = escapeHtml(session.end_time);
+                    const sessionId = session.$id; // Appwrite document ID (string)
+
                     const html = `
-                        <div class="container class-container block-register" onclick="toggleSession(${session.id}, this)">
+                        <div class="container class-container block-register" onclick="toggleSession('${sessionId}', this)">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <h2 style="margin: 0;">${session.class_name}</h2>
-                                <span style="font-size: 1.1rem; color: #a5b4fc;">${session.start_time} - ${session.end_time}</span>
+                                <h2 style="margin: 0;">${safeName}</h2>
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <span style="font-size: 1.1rem; color: #a5b4fc;">${safeStartTime} - ${safeEndTime}</span>
+                                    <button onclick="deleteSession('${sessionId}', event)" class="btn btn-danger" style="padding: 0.5rem 0.75rem; font-size: 1.2rem; background: rgba(239, 68, 68, 0.3); border: 1px solid rgba(239, 68, 68, 0.6); cursor: pointer; border-radius: 6px;" title="Delete class">
+                                        🗑️
+                                    </button>
+                                </div>
                             </div>
                             
-                            <div id="expandable-${session.id}" class="class-expandable">
-                                <div style="text-align: center; padding: 2rem;" id="loading-${session.id}">
+                            <div id="expandable-${sessionId}" class="class-expandable">
+                                <div style="text-align: center; padding: 2rem;" id="loading-${sessionId}">
                                     Loading attendance records...
                                 </div>
-                                <div id="report-${session.id}" style="display: none;">
+                                <div id="report-${sessionId}" style="display: none;">
                                     <div class="list-group" style="box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.4);">
                                         <h3 style="color: #34d399;">✅ Present (>= 80%)</h3>
-                                        <div id="present-list-${session.id}"></div>
+                                        <div id="present-list-${sessionId}"></div>
                                     </div>
                                     <div class="list-group" style="box-shadow: inset 0 0 0 1px rgba(236, 72, 153, 0.4);">
                                         <h3 style="color: #f472b6;">⚠️ Suspicious / Partial (< 80%)</h3>
-                                        <div id="suspicious-list-${session.id}"></div>
+                                        <div id="suspicious-list-${sessionId}"></div>
                                     </div>
                                     <div class="list-group" style="box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.4);">
                                         <h3 style="color: #fb7185;">❌ Absent (0 Pings)</h3>
-                                        <div id="absent-list-${session.id}"></div>
+                                        <div id="absent-list-${sessionId}"></div>
                                     </div>
                                 </div>
                             </div>
@@ -148,37 +329,35 @@
 
             } catch (err) {
                 console.error(err);
-                alert("Failed to load today's classes.");
+                alert("Failed to load today's classes: " + err.message);
             }
         }
 
         async function toggleSession(sessionId, element) {
             const exp = document.getElementById(`expandable-${sessionId}`);
-            
-            // Toggle
+
             if (exp.classList.contains('open')) {
                 exp.classList.remove('open');
-                return; // Just closes it
+                return;
             }
-            
-            // Close all others
+
             document.querySelectorAll('.class-expandable').forEach(el => {
                 if (el.id !== `expandable-${sessionId}`) el.classList.remove('open');
             });
-            
+
             exp.classList.add('open');
-            
-            // Fetch Report
+
             try {
-                const res = await axios.get(`${API_URL}/lecturer/session/${sessionId}/report`);
-                const { present, suspicious, absent } = res.data;
-                
+                const report = await getSessionReport(sessionId);
+                const { present, suspicious, absent } = report;
+
+                // SECURITY: Build student list with escaped HTML
                 const buildList = (arr, color) => {
                     if (arr.length === 0) return `<p style="color:var(--text-muted); font-style:italic;">No students in this category.</p>`;
                     return arr.map(s => `
                         <div class="student-item">
-                            <span><strong>${s.name}</strong> (${s.roll_number})</span>
-                            <span style="color: ${color};">${s.pings} pts</span>
+                            <span><strong>${escapeHtml(s.name)}</strong> (${escapeHtml(s.roll_number)})</span>
+                            <span style="color: ${color};">${Number(s.pings)} pts</span>
                         </div>
                     `).join('');
                 };
@@ -192,28 +371,86 @@
 
             } catch (err) {
                 console.error(err);
-                document.getElementById(`loading-${sessionId}`).innerHTML = "Error fetching report.";
+                document.getElementById(`loading-${sessionId}`).textContent = "Error fetching report: " + err.message;
+            }
+        }
+
+        async function deleteSession(sessionId, event) {
+            event.stopPropagation();
+
+            if (!confirm("Are you sure you want to delete this class session? This action cannot be undone.")) {
+                return;
+            }
+
+            try {
+                await deleteClassSession(sessionId);
+                alert("Class session deleted successfully!");
+                loadSessions();
+            } catch (err) {
+                console.error(err);
+                alert(err.message || "Failed to delete class session.");
             }
         }
 
         async function seedDevClass() {
+            document.getElementById('seedClassModal').style.display = 'block';
+
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('modalDate').value = today;
+
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('modalStartTime').value = `${hours}:${minutes}`;
+        }
+
+        function closeModalSeedClass() {
+            document.getElementById('seedClassModal').style.display = 'none';
+        }
+
+        async function submitSeedClass(event) {
+            event.preventDefault();
+
+            const date = document.getElementById('modalDate').value;
+            const startTime = document.getElementById('modalStartTime').value;
+            const className = document.getElementById('modalClassName').value;
+            const classId = document.getElementById('modalClassId').value;
+            const duration = document.getElementById('modalDuration').value;
+
             try {
-                // Hardcode 60 minutes for a test lecture
-                await axios.post(`${API_URL}/dev/seed-class?lecturer_id=${lecturerId}&class_name=Computer Science 101&duration_minutes=60`);
-                alert("A mock class session has been injected and activated! Refreshing list.");
+                await createClassSession({
+                    lecturerDocId: lecturerDocId,
+                    lecturerCustomId: lecturerCustomId,
+                    className: className,
+                    classId: classId || null,
+                    date: date,
+                    startTime: startTime,
+                    durationMinutes: parseInt(duration) || 60,
+                });
+
+                closeModalSeedClass();
+                alert("Class session created successfully!");
                 loadSessions();
             } catch (err) {
                 console.error(err);
-                alert("Dev tool failed.");
+                alert(err.message || "Failed to create class session.");
             }
         }
 
-        function logout() {
-            localStorage.clear();
+        window.onclick = function (event) {
+            const modal = document.getElementById('seedClassModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        async function logout() {
+            await logoutUser();
             window.location.href = 'index.html';
         }
 
         document.addEventListener('DOMContentLoaded', loadSessions);
     </script>
 </body>
+
 </html>

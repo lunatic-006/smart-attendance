@@ -5,3 +5,7 @@ __pycache__/
 attendance.db
 .env
 .DS_Store
+node_modules/
+.vercel/
+package-lock.json
+.vercel

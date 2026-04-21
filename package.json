@@ -1,0 +1,12 @@
+{
+  "name": "smart-attendance-system",
+  "version": "1.0.0",
+  "description": "Smart Face Recognition Attendance System with Appwrite + Vercel",
+  "private": true,
+  "scripts": {
+    "setup": "node setup-appwrite.mjs"
+  },
+  "devDependencies": {
+    "node-appwrite": "^14.0.0"
+  }
+}

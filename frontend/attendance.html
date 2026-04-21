@@ -5,62 +5,210 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Attendance Verifier - Smart Face App</title>
+    <meta name="description" content="Automatic face recognition attendance verification for students.">
     <link rel="stylesheet" href="styles.css">
+    <style>
+        .face-status {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            text-align: center;
+            margin-top: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        .face-status.detecting { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; }
+        .face-status.success { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .face-status.error { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    </style>
 </head>
 
 <body>
-    <div class="container" style="max-width: 600px; text-align: center;">
+    <div class="container" style="max-width: 800px; text-align: center;">
         <h1 id="welcomeText">Welcome</h1>
-        <p>Please look at the camera to verify your attendance.</p>
+        <p style="margin-bottom: 0.5rem;">Please look at the camera to verify your attendance.</p>
 
         <div id="statusBox" class="status-box"></div>
 
-        <div class="camera-container" style="display: none;">
-            <video id="webcam" autoplay playsinline></video>
+        <!-- Camera View Section -->
+        <div style="margin: 1.5rem 0;">
+            <div class="camera-container"
+                style="display: block; border: 3px solid #059669; border-radius: 12px; overflow: hidden; background: #000; max-height: 400px;">
+                <video id="webcam" autoplay playsinline style="width: 100%; height: auto; display: block;"></video>
+            </div>
+            <div id="faceStatus" class="face-status detecting">🔄 Initializing face recognition...</div>
         </div>
 
-        <button class="btn btn-secondary" onclick="logout()" style="margin-top: 1rem;">Log Out</button>
+        <!-- Attendance Status Section -->
+        <div
+            style="margin: 1.5rem 0; padding: 1.5rem; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border-left: 5px solid #059669; border-radius: 8px; text-align: left;">
+            <h3 style="margin-top: 0; color: #065f46; display: flex; align-items: center;">
+                <span style="font-size: 1.5em; margin-right: 10px;">📊</span>
+                Current Class Attendance Status
+            </h3>
 
-        <div style="margin-top: 2rem; padding: 1rem; background: #d1fae5; color: #065f46; border-radius: 6px; text-align: left; font-size: 0.9em;"
+            <div id="attendanceInfo"
+                style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 0.95em;">
+                <div style="padding: 10px; background: white; border-radius: 6px;">
+                    <p style="margin: 0 0 5px 0; color: #666; font-weight: bold;">Class Name</p>
+                    <p id="className" style="margin: 0; color: #059669; font-size: 1.1em; font-weight: bold;">-</p>
+                </div>
+                <div style="padding: 10px; background: white; border-radius: 6px;">
+                    <p style="margin: 0 0 5px 0; color: #666; font-weight: bold;">Status</p>
+                    <p id="attendanceStatus" style="margin: 0; color: #059669; font-size: 1.1em; font-weight: bold;">
+                        Pending</p>
+                </div>
+                <div style="padding: 10px; background: white; border-radius: 6px;">
+                    <p style="margin: 0 0 5px 0; color: #666; font-weight: bold;">Verification Count</p>
+                    <p id="verificationCount" style="margin: 0; color: #059669; font-size: 1.1em; font-weight: bold;">0
+                    </p>
+                </div>
+                <div style="padding: 10px; background: white; border-radius: 6px;">
+                    <p style="margin: 0 0 5px 0; color: #666; font-weight: bold;">Time In Class</p>
+                    <p id="timeInClass" style="margin: 0; color: #059669; font-size: 1.1em; font-weight: bold;">-</p>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 6px;">
+                <p style="margin: 0 0 5px 0; color: #666; font-weight: bold;">Lecturer</p>
+                <p id="lecturerInfo" style="margin: 0; color: #059669; font-size: 0.95em;">Detecting...</p>
+            </div>
+        </div>
+
+        <!-- Session Info -->
+        <div style="margin-top: 1.5rem; padding: 1rem; background: #d1fae5; color: #065f46; border-radius: 6px; text-align: left; font-size: 0.9em;"
             id="periodicStatus">
-            <strong>Session Active:</strong> Your attendance is being verified automatically in the background. Please ensure this tab is open or minimized while the module runs.
+            <strong>✓ Session Active:</strong> Your attendance is being verified automatically in the background. Please
+            ensure this tab remains open while the class is running.
         </div>
+
+        <button class="btn btn-secondary" onclick="logout()" style="margin-top: 1rem; width: 100%;">Log Out</button>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Scripts: Appwrite SDK + face-api.js + our modules -->
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@16.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+    <script src="appwrite-config.js"></script>
+    <script src="appwrite-db.js"></script>
+    <script src="face-recognition.js"></script>
     <script src="camera_capture.js"></script>
     <script>
-        const API_URL = "http://localhost:8000/api";
-        const studentId = localStorage.getItem('student_id');
+        const studentDocId = localStorage.getItem('student_doc_id');
         const studentName = localStorage.getItem('student_name');
+        const studentFaceEncodingStr = localStorage.getItem('student_face_encoding');
         const targetLecturerId = localStorage.getItem('target_lecturer_id');
 
         let pingInterval;
+        let verificationCount = 0;
+        let currentSessionId = null;
+        let currentClassName = null;
+        let loginTime = new Date();
+        let storedFaceDescriptor = null;
 
-        if (!studentId || !targetLecturerId) {
+        if (!studentDocId) {
             window.location.href = 'index.html';
         }
 
-        document.getElementById('welcomeText').innerText = `Welcome, ${studentName}`;
+        // Parse stored face encoding
+        try {
+            if (studentFaceEncodingStr) {
+                storedFaceDescriptor = JSON.parse(studentFaceEncodingStr);
+            }
+        } catch (e) {
+            console.warn('Could not parse stored face encoding:', e);
+        }
+
+        // SECURITY: Use textContent instead of innerHTML to prevent XSS
+        document.getElementById('welcomeText').textContent = `Welcome, ${studentName}`;
 
         function showStatus(message, isError = false) {
             const el = document.getElementById('statusBox');
             el.className = `status-box ${isError ? 'error' : 'success'}`;
-            if (typeof message === 'object') {
-                message = JSON.stringify(message);
+            if (typeof message === 'object') message = JSON.stringify(message);
+            el.textContent = message;
+        }
+
+        function setFaceStatus(message, type = 'detecting') {
+            const el = document.getElementById('faceStatus');
+            el.className = `face-status ${type}`;
+            el.textContent = message;
+        }
+
+        function updateAttendanceUI(status, className = null, sessionId = null) {
+            if (status === 'success') {
+                verificationCount++;
             }
-            el.innerHTML = message;
+            document.getElementById('verificationCount').textContent = verificationCount;
+
+            if (className) {
+                currentClassName = className;
+                document.getElementById('className').textContent = className;
+            }
+
+            if (sessionId) {
+                currentSessionId = sessionId;
+            }
+
+            let statusDisplay = 'Pending';
+            let statusColor = '#f59e0b';
+            if (status === 'success') {
+                statusDisplay = '✓ Present';
+                statusColor = '#059669';
+            } else if (status === 'verified') {
+                statusDisplay = '✓ Verified';
+                statusColor = '#059669';
+            } else if (status === 'warning') {
+                statusDisplay = '⚠ Warning';
+                statusColor = '#f59e0b';
+            }
+            const statusEl = document.getElementById('attendanceStatus');
+            statusEl.textContent = statusDisplay;
+            statusEl.style.color = statusColor;
+
+            // Update time in class
+            const now = new Date();
+            const timeElapsed = Math.floor((now - loginTime) / 1000 / 60);
+            const hours = Math.floor(timeElapsed / 60);
+            const minutes = timeElapsed % 60;
+            let timeStr = '';
+            if (hours > 0) {
+                timeStr = `${hours}h ${minutes}m`;
+            } else {
+                timeStr = `${minutes}m`;
+            }
+            document.getElementById('timeInClass').textContent = timeStr;
+
+            // Update lecturer info
+            let lecturerDisplay = targetLecturerId ? `Lecturer: ${targetLecturerId}` : 'Any Active Session';
+            document.getElementById('lecturerInfo').textContent = lecturerDisplay;
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
             await startCamera('webcam');
-            showStatus(`Camera initialized. Targeting active session for Lecturer: ${targetLecturerId}...`);
-            
-            // Execute the very first verification check automatically right after logging in
-            verifyFrame();
-            
-            // Silently loop exactly every 60 seconds (1 minute interval)
+            const lecturerMsg = targetLecturerId ? `Lecturer: ${targetLecturerId}` : "any active class session";
+            showStatus(`Camera initialized. Targeting ${lecturerMsg}...`);
+
+            // Load face recognition models
+            setFaceStatus('🔄 Loading face recognition models...', 'detecting');
+            try {
+                await loadFaceModels();
+                setFaceStatus('✅ Face recognition ready', 'success');
+            } catch (err) {
+                setFaceStatus('⚠️ Face models failed to load', 'error');
+                showStatus('Face recognition models could not be loaded. Attendance may not work.', true);
+            }
+
+            updateAttendanceUI('pending');
+
+            // Execute the very first verification check automatically
+            setTimeout(verifyFrame, 2000); // Wait 2s for camera to stabilize
+
+            // Silently loop every 60 seconds
             pingInterval = setInterval(verifyFrame, 60000);
+
+            // Update time display every minute
+            setInterval(() => {
+                updateAttendanceUI('pending');
+            }, 60000);
         });
 
         async function verifyFrame() {
@@ -70,25 +218,63 @@
                 return;
             }
 
+            if (!storedFaceDescriptor || storedFaceDescriptor.length === 0) {
+                showStatus("⚠ No face encoding found. Please re-register with face capture.", true);
+                return;
+            }
+
             try {
-                // Using mark endpoint so it counts initially and validates safely
-                const response = await axios.post(`${API_URL}/attendance/mark`, {
-                    student_id: studentId,
-                    target_lecturer_id: targetLecturerId,
-                    captured_image
-                });
-                showStatus("Attendance status: Active and Verified.");
-                console.log("Background Face Validation Success:", response.data);
+                setFaceStatus('🔍 Verifying face...', 'detecting');
+
+                // 1. Extract face descriptor from current webcam frame
+                const capturedDescriptor = await getFaceDescriptorFromBase64(captured_image);
+
+                // 2. Compare with stored face descriptor
+                const result = compareFaceDescriptors(storedFaceDescriptor, capturedDescriptor);
+
+                if (!result.match) {
+                    setFaceStatus(`❌ Face not matched (${result.confidence.toFixed(1)}% confidence)`, 'error');
+                    updateAttendanceUI('warning');
+                    showStatus(`⚠ Face verification failed. Confidence: ${result.confidence.toFixed(1)}%`, true);
+                    return;
+                }
+
+                setFaceStatus(`✅ Face verified (${result.confidence.toFixed(1)}% confidence)`, 'success');
+
+                // 3. Find active session
+                const session = await findActiveSession(targetLecturerId || '');
+
+                // 4. Mark attendance in Appwrite
+                const attendanceResult = await markAttendance(session.$id, studentDocId);
+
+                updateAttendanceUI('success', session.class_name, session.$id);
+                showStatus(`✓ Attendance verified. ${attendanceResult.message} (Confidence: ${result.confidence.toFixed(1)}%)`);
+                console.log("✅ Attendance marked:", attendanceResult);
+
             } catch (err) {
-                console.error("Background Face Validation Failed:", err.response?.data || err.message);
-                showStatus("Warning: Face missing or unrecognized. Ensure you are in frame.", true);
+                console.error("Verification failed:", err.message);
+                const errorMsg = err.message || 'Unknown error';
+
+                if (errorMsg.includes("No active class session")) {
+                    updateAttendanceUI('warning', 'No Active Class');
+                    showStatus("⚠ No active class session found currently.", true);
+                    setFaceStatus('⏳ Waiting for active class...', 'detecting');
+                } else if (errorMsg.includes("No face detected")) {
+                    updateAttendanceUI('warning');
+                    showStatus("⚠ No face detected. Ensure you are in frame.", true);
+                    setFaceStatus('⚠️ No face detected in frame', 'error');
+                } else {
+                    updateAttendanceUI('warning');
+                    showStatus("⚠ Verification pending. " + errorMsg, true);
+                    setFaceStatus('⚠️ ' + errorMsg, 'error');
+                }
             }
         }
 
-        function logout() {
+        async function logout() {
             clearInterval(pingInterval);
             stopCamera();
-            localStorage.clear();
+            await logoutUser();
             window.location.href = 'index.html';
         }
     </script>

@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal - Smart Face Attendance</title>
+    <meta name="description" content="Smart Face Recognition Attendance System — Register and login for students and lecturers.">
     <link rel="stylesheet" href="styles.css">
     <style>
         .portal-wrapper {
@@ -16,68 +17,47 @@
             margin: 3rem auto;
             padding: 0 1rem;
         }
-        /* Override centering from body since we have multiple blocks */
+
         .portal-wrapper .container {
             margin: 0;
             width: 100%;
         }
-        
-        /* Premium Custom Toggle Switch */
-        .role-toggle-container {
+
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
             display: flex;
-            justify-content: center;
-            margin-bottom: 2rem;
-            width: 100%;
-        }
-        .role-toggle-checkbox {
-            display: none;
-        }
-        .role-toggle-label {
-            position: relative;
-            display: flex;
-            background: rgba(0,0,0,0.3);
-            border-radius: 30px;
-            width: 100%;
-            height: 48px;
-            cursor: pointer;
             align-items: center;
-            border: 1px solid var(--surface-border);
+            justify-content: center;
+            z-index: 9999;
         }
-        .role-student, .role-lecturer {
-            flex: 1;
+        .loading-overlay.hidden { display: none; }
+        .loading-spinner {
+            width: 50px; height: 50px;
+            border: 4px solid rgba(255,255,255,0.2);
+            border-top-color: #818cf8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .model-status {
             text-align: center;
-            z-index: 2;
-            font-weight: 600;
-            color: var(--text-muted);
-            transition: color 0.3s;
-            font-size: 1.1rem;
-        }
-        .toggle-switch {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: calc(50% - 4px);
-            height: 42px;
-            background: linear-gradient(135deg, #4f46e5, #818cf8);
-            border-radius: 28px;
-            z-index: 1;
-            transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        }
-        .role-toggle-checkbox:checked + .role-toggle-label .toggle-switch {
-            transform: translateX(calc(100% + 4px));
-        }
-        .role-toggle-checkbox:not(:checked) + .role-toggle-label .role-student {
-            color: white;
-            text-shadow: 0 0 8px rgba(255,255,255,0.5);
-        }
-        .role-toggle-checkbox:checked + .role-toggle-label .role-lecturer {
-            color: white;
-            text-shadow: 0 0 8px rgba(255,255,255,0.5);
+            padding: 0.5rem;
+            font-size: 0.85rem;
+            color: #a5b4fc;
+            opacity: 0.8;
         }
     </style>
 </head>
 
 <body>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+    </div>
+
     <!-- Floating College Background Objects -->
     <div class="floating-objects-container">
         <div class="floating-obj">🎓</div>
@@ -98,78 +78,116 @@
     </div>
 
     <div class="portal-wrapper">
-        
-        <!-- 1. Universal Registration Block -->
+
+        <!-- 1. UNIFIED REGISTRATION Block -->
         <div class="container register-hover-container block-register">
             <h1 style="text-align: center; margin-bottom: 0;">Registration</h1>
-            
+
+            <!-- Role Toggle Switch -->
+            <div class="role-toggle-container" style="margin-top: 1.5rem; margin-bottom: 1.5rem;">
+                <input type="checkbox" id="reg-role-toggle" class="role-toggle-checkbox">
+                <label for="reg-role-toggle" class="role-toggle-label">
+                    <span class="role-student">Student</span>
+                    <span class="role-lecturer">Lecturer</span>
+                    <div class="toggle-switch"></div>
+                </label>
+            </div>
+
             <div id="regStatusBox" class="status-box"></div>
-            
+            <div id="modelStatus" class="model-status"></div>
+
             <div class="expandable-content">
-                <div class="dashboard-grid">
-                    <div class="form-section">
-                        <form id="registerForm">
-                            <div class="role-toggle-container">
-                                <input type="checkbox" id="role-toggle" class="role-toggle-checkbox">
-                                <label for="role-toggle" class="role-toggle-label">
-                                    <span class="role-student">Student</span>
-                                    <span class="role-lecturer">Lecturer</span>
-                                    <div class="toggle-switch"></div>
-                                </label>
+                <div class="dashboard-grid" id="regDashboardGrid">
+                    <!-- Left Pane: Student Form -->
+                    <div class="form-section-container" id="studentFormSection"
+                        style="transition: opacity 0.4s ease, max-height 0.5s ease; max-height: 500px; overflow: visible; grid-column: 1; grid-row: 1;">
+                        <form id="studentRegisterForm">
+                            <div class="form-group">
+                                <label for="name_student" style="color: #a5b4fc;">Full Name</label>
+                                <input type="text" id="name_student" required minlength="2" maxlength="255">
                             </div>
                             <div class="form-group">
-                                <label for="name" style="color: #a5b4fc;">Full Name</label>
-                                <input type="text" id="name" required>
+                                <label for="email_student_reg" style="color: #a5b4fc;">Email Address</label>
+                                <input type="email" id="email_student_reg" required>
                             </div>
                             <div class="form-group">
-                                <label for="id_number" style="color: #a5b4fc;">ID Number (Roll No / Lecturer ID)</label>
-                                <input type="text" id="id_number" required>
+                                <label for="id_number_student_reg" style="color: #a5b4fc;">Roll Number</label>
+                                <input type="text" id="id_number_student_reg" required maxlength="100">
                             </div>
                             <div class="form-group">
-                                <label for="email_reg" style="color: #a5b4fc;">Email Address</label>
-                                <input type="email" id="email_reg" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="password_reg" style="color: #a5b4fc;">Password</label>
-                                <input type="password" id="password_reg" required>
+                                <label for="password_student_reg" style="color: #a5b4fc;">Password (min 8 chars)</label>
+                                <input type="password" id="password_student_reg" required minlength="8">
                             </div>
                         </form>
                     </div>
 
-                    <div class="dynamic-right-pane" style="position: relative; min-height: 350px;">
-                        <div class="camera-section" id="studentCameraSection" style="position: absolute; top:0; left:0; right:0; transition: opacity 0.5s ease, transform 0.5s ease; opacity: 1; transform: translateY(0);">
+                    <!-- Lecturer Form (spans full grid when active) -->
+                    <div id="lecturerFormSection"
+                        style="grid-column: 1 / -1; grid-row: 2; max-height: 0; opacity: 0; overflow: hidden; pointer-events: none; transition: max-height 0.5s ease, opacity 0.4s ease, padding 0.5s ease; padding: 0;">
+                        <form id="lecturerRegisterForm">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="name_lecturer" style="color: #a5b4fc;">Full Name</label>
+                                    <input type="text" id="name_lecturer" required minlength="2" maxlength="255">
+                                </div>
+                                <div class="form-group">
+                                    <label for="id_number_lecturer" style="color: #a5b4fc;">Lecturer ID</label>
+                                    <input type="text" id="id_number_lecturer" required maxlength="100">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="email_lecturer_reg" style="color: #a5b4fc;">Email Address</label>
+                                    <input type="email" id="email_lecturer_reg" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="password_lecturer_reg" style="color: #a5b4fc;">Password (min 8
+                                        chars)</label>
+                                    <input type="password" id="password_lecturer_reg" required minlength="8">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Right Pane: Camera Section -->
+                    <div class="dynamic-right-pane" id="cameraPaneSection"
+                        style="width: 100%; justify-self: center; transition: max-height 0.5s ease, opacity 0.4s ease; overflow: hidden; max-height: 600px; grid-column: 2; grid-row: 1;">
+                        <div class="camera-section" id="studentCameraSection"
+                            style="width: 100%; min-width: 320px; transition: opacity 0.3s ease;">
                             <div class="camera-container">
                                 <video id="webcam" autoplay playsinline></video>
                             </div>
 
-                            <div style="display: flex; flex-direction: row; justify-content: center; gap: 1.5rem; margin-top: 1.5rem; text-align: center; flex-wrap: nowrap;">
+                            <div
+                                style="display: flex; flex-direction: row; justify-content: center; gap: 1.5rem; margin-top: 1.5rem; text-align: center; flex-wrap: nowrap;">
                                 <div style="flex: 1; max-width: 150px;">
-                                    <button type="button" class="btn btn-secondary" id="btnLeft" style="margin-bottom: 1rem; width: 100%; padding: 0.5rem; background:rgba(79, 70, 229, 0.2);">Left</button>
+                                    <button type="button" class="btn" id="btnLeft"
+                                        style="margin-bottom: 1rem; width: 100%; padding: 0.75rem 0.5rem; background: linear-gradient(135deg, #4f46e5, #6366f1); font-size: 0.95rem; font-weight: 600; letter-spacing: 0.5px;">⬅
+                                        Left</button>
                                     <img id="previewLeft" class="capture-preview" src="">
                                 </div>
                                 <div style="flex: 1; max-width: 150px;">
-                                    <button type="button" class="btn btn-secondary" id="btnFront" style="margin-bottom: 1rem; width: 100%; padding: 0.5rem; background:rgba(79, 70, 229, 0.2);">Front</button>
+                                    <button type="button" class="btn" id="btnFront"
+                                        style="margin-bottom: 1rem; width: 100%; padding: 0.75rem 0.5rem; background: linear-gradient(135deg, #6366f1, #818cf8); font-size: 0.95rem; font-weight: 600; letter-spacing: 0.5px;">📷
+                                        Front</button>
                                     <img id="previewFront" class="capture-preview" src="">
                                 </div>
                                 <div style="flex: 1; max-width: 150px;">
-                                    <button type="button" class="btn btn-secondary" id="btnRight" style="margin-bottom: 1rem; width: 100%; padding: 0.5rem; background:rgba(79, 70, 229, 0.2);">Right</button>
+                                    <button type="button" class="btn" id="btnRight"
+                                        style="margin-bottom: 1rem; width: 100%; padding: 0.75rem 0.5rem; background: linear-gradient(135deg, #4f46e5, #6366f1); font-size: 0.95rem; font-weight: 600; letter-spacing: 0.5px;">Right
+                                        ➡</button>
                                     <img id="previewRight" class="capture-preview" src="">
                                 </div>
-                            </div>
-                        </div>
-
-                        <div class="lecturer-info-section" id="lecturerInfoSection" style="position: absolute; top:0; left:0; right:0; bottom:0; transition: opacity 0.5s ease, transform 0.5s ease; opacity: 0; transform: translateY(20px); pointer-events: none;">
-                            <div style="text-align: center; padding: 3rem 2rem; background: rgba(0,0,0,0.2); border-radius: 12px; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px dashed rgba(255,255,255,0.15);">
-                                <div style="font-size: 5rem; margin-bottom: 1.5rem; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));">👨‍🏫</div>
-                                <h3 style="color: #a5b4fc; margin: 0; font-size: 1.8rem;">Lecturer Profile</h3>
-                                <p style="color: var(--text-muted); margin-top: 1rem; line-height: 1.6; font-size: 1.1rem;">Biometric 3D face capture is reserved exclusively for Student attendance tracking. <br><br>As a Lecturer, you will bypass the facial embedding pipeline and access the Secure Analytics Dashboard directly via your ID.</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div style="margin-top: 2rem; text-align: center;">
-                    <button type="button" class="btn" id="btnSubmitReg" style="width: 100%; max-width: 300px; background: linear-gradient(135deg, #4f46e5, #818cf8);">Complete Registration</button>
+                <div id="regSubmitWrapper"
+                    style="margin-top: 2rem; text-align: center; transition: margin-top 0.5s ease;">
+                    <button type="button" class="btn" id="btnSubmitReg"
+                        style="width: 100%; max-width: 300px; background: linear-gradient(135deg, #4f46e5, #818cf8);">Complete
+                        Registration</button>
                 </div>
             </div>
         </div>
@@ -177,9 +195,9 @@
         <!-- 2. Student Attendance Login Block -->
         <div class="container register-hover-container block-student">
             <h1 style="text-align: center; margin-bottom: 0;">Student Login (Attendance)</h1>
-            
+
             <div id="studentStatusBox" class="status-box"></div>
-            
+
             <div class="expandable-content">
                 <form id="studentLoginForm">
                     <div class="form-group">
@@ -187,14 +205,16 @@
                         <input type="text" id="roll_number_student" required>
                     </div>
                     <div class="form-group">
-                        <label for="lecturer_id_target" style="color: #6ee7b7;">Lecturer ID (Target Session)</label>
-                        <input type="text" id="lecturer_id_target" placeholder="e.g. L101" required>
+                        <label for="lecturer_id_target" style="color: #6ee7b7;">Lecturer ID (Optional)</label>
+                        <input type="text" id="lecturer_id_target" placeholder="e.g. L101">
                     </div>
                     <div class="form-group">
                         <label for="password_student" style="color: #6ee7b7;">Password</label>
                         <input type="password" id="password_student" required>
                     </div>
-                    <button type="button" class="btn" id="btnStudentLogin" style="width: 100%; background: linear-gradient(135deg, #059669, #34d399);">Log In & Mark Attendance</button>
+                    <button type="button" class="btn" id="btnStudentLogin"
+                        style="width: 100%; background: linear-gradient(135deg, #059669, #34d399);">Log In & Mark
+                        Attendance</button>
                 </form>
             </div>
         </div>
@@ -202,81 +222,112 @@
         <!-- 3. Lecturer Dashboard Login Block -->
         <div class="container register-hover-container block-lecturer">
             <h1 style="text-align: center; margin-bottom: 0;">Lecturer Login</h1>
-            
+
             <div id="lecturerStatusBox" class="status-box"></div>
-            
+
             <div class="expandable-content">
                 <form id="lecturerLoginForm">
                     <div class="form-group">
-                        <label for="lecturer_id">Lecturer ID (e.g., admin)</label>
+                        <label for="lecturer_id">Lecturer ID</label>
                         <input type="text" id="lecturer_id" required>
                     </div>
                     <div class="form-group">
-                        <label for="password_lecturer">Password (e.g., admin)</label>
+                        <label for="password_lecturer">Password</label>
                         <input type="password" id="password_lecturer" required>
                     </div>
-                    <button type="button" class="btn btn-danger" id="btnLecturerLogin" style="width: 100%;">Access Dashboard</button>
+                    <button type="button" class="btn btn-danger" id="btnLecturerLogin" style="width: 100%;">Access
+                        Dashboard</button>
                 </form>
             </div>
         </div>
 
     </div>
 
-    <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Scripts: Appwrite SDK + face-api.js + our modules -->
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@16.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+    <script src="appwrite-config.js"></script>
+    <script src="appwrite-db.js"></script>
+    <script src="face-recognition.js"></script>
     <script src="camera_capture.js"></script>
     <script>
-        const API_URL = "http://localhost:8000/api";
-
-        // Global Utility
+        // ==================== UI Helpers ====================
         function setStatus(boxId, message, isError = false) {
             const el = document.getElementById(boxId);
             el.className = `status-box ${isError ? 'error' : 'success'}`;
-            if (typeof message === 'object') {
-                message = JSON.stringify(message);
-            }
-            el.innerHTML = message;
+            if (typeof message === 'object') message = JSON.stringify(message);
+            el.textContent = message;
         }
 
+        function showLoading() { document.getElementById('loadingOverlay').classList.remove('hidden'); }
+        function hideLoading() { document.getElementById('loadingOverlay').classList.add('hidden'); }
+
         // ==========================================
-        // 1. STUDENT REGISTRATION LOGIC
+        // 1. UNIFIED REGISTRATION LOGIC
         // ==========================================
-        const state = { front: null, left: null, right: null };
+        const studentState = { front: null, left: null, right: null };
 
         document.addEventListener('DOMContentLoaded', async () => {
             await startCamera('webcam');
+
+            // Pre-load face recognition models in background
+            document.getElementById('modelStatus').textContent = '🔄 Loading face recognition models...';
+            try {
+                await loadFaceModels();
+                document.getElementById('modelStatus').textContent = '✅ Face recognition ready';
+                setTimeout(() => { document.getElementById('modelStatus').textContent = ''; }, 3000);
+            } catch (err) {
+                document.getElementById('modelStatus').textContent = '⚠️ Face models loading — will retry on use';
+            }
         });
 
-        const roleToggle = document.getElementById('role-toggle');
-        const camSection = document.getElementById('studentCameraSection');
-        const lecSection = document.getElementById('lecturerInfoSection');
+        const regRoleToggle = document.getElementById('reg-role-toggle');
+        const studentFormSection = document.getElementById('studentFormSection');
+        const lecturerFormSection = document.getElementById('lecturerFormSection');
+        const cameraPaneSection = document.getElementById('cameraPaneSection');
+        const regDashboardGrid = document.getElementById('regDashboardGrid');
 
-        roleToggle.addEventListener('change', (e) => {
+        regRoleToggle.addEventListener('change', async (e) => {
+            const submitWrapper = document.getElementById('regSubmitWrapper');
             if (e.target.checked) {
-                // Lecturer Selected
-                camSection.style.opacity = '0';
-                camSection.style.transform = 'translateY(-20px)';
-                camSection.style.pointerEvents = 'none';
-                
-                lecSection.style.opacity = '1';
-                lecSection.style.transform = 'translateY(0)';
-                lecSection.style.pointerEvents = 'auto';
+                studentFormSection.style.opacity = '0';
+                studentFormSection.style.maxHeight = '0';
+                studentFormSection.style.overflow = 'hidden';
+                studentFormSection.style.pointerEvents = 'none';
+
+                lecturerFormSection.style.maxHeight = '300px';
+                lecturerFormSection.style.opacity = '1';
+                lecturerFormSection.style.pointerEvents = 'auto';
+                lecturerFormSection.style.padding = '0.5rem 0';
+
+                cameraPaneSection.style.maxHeight = '0';
+                cameraPaneSection.style.opacity = '0';
+                studentCameraSection.style.opacity = '0';
+                submitWrapper.style.marginTop = '1rem';
+                setTimeout(() => stopCamera(), 400);
             } else {
-                // Student Selected
-                lecSection.style.opacity = '0';
-                lecSection.style.transform = 'translateY(20px)';
-                lecSection.style.pointerEvents = 'none';
-                
-                camSection.style.opacity = '1';
-                camSection.style.transform = 'translateY(0)';
-                camSection.style.pointerEvents = 'auto';
+                lecturerFormSection.style.maxHeight = '0';
+                lecturerFormSection.style.opacity = '0';
+                lecturerFormSection.style.pointerEvents = 'none';
+                lecturerFormSection.style.padding = '0';
+
+                studentFormSection.style.opacity = '1';
+                studentFormSection.style.maxHeight = '500px';
+                studentFormSection.style.overflow = 'visible';
+                studentFormSection.style.pointerEvents = 'auto';
+
+                cameraPaneSection.style.maxHeight = '600px';
+                cameraPaneSection.style.opacity = '1';
+                studentCameraSection.style.opacity = '1';
+                submitWrapper.style.marginTop = '2rem';
+                await startCamera('webcam');
             }
         });
 
         function handleCapture(angle) {
             const dataUrl = captureBase64();
             if (!dataUrl) return;
-            state[angle] = dataUrl;
+            studentState[angle] = dataUrl;
 
             let previewId = `preview${angle.charAt(0).toUpperCase() + angle.slice(1)}`;
             document.getElementById(previewId).src = dataUrl;
@@ -287,31 +338,77 @@
         document.getElementById('btnRight').addEventListener('click', () => handleCapture('right'));
 
         document.getElementById('btnSubmitReg').addEventListener('click', async () => {
-            const role = document.getElementById('role-toggle').checked ? 'lecturer' : 'student';
-            const name = document.getElementById('name').value;
-            const id_number = document.getElementById('id_number').value;
-            const email = document.getElementById('email_reg').value;
-            const password = document.getElementById('password_reg').value;
+            const isLecturer = regRoleToggle.checked;
 
-            if (!name || !id_number || !email || !password) {
-                return setStatus('regStatusBox', "Please fill all text fields.", true);
-            }
-            if (role === 'student' && (!state.front || !state.left || !state.right)) {
-                return setStatus('regStatusBox', "Please capture all 3 required face angles.", true);
-            }
+            if (isLecturer) {
+                const name = document.getElementById('name_lecturer').value;
+                const id_number = document.getElementById('id_number_lecturer').value;
+                const email = document.getElementById('email_lecturer_reg').value;
+                const password = document.getElementById('password_lecturer_reg').value;
 
-            try {
-                setStatus('regStatusBox', "Processing registration...");
-                const response = await axios.post(`${API_URL}/register`, {
-                    role, name, id_number, email, 
-                    passwordHash: password,
-                    front_image: state.front || "", 
-                    left_image: state.left || "", 
-                    right_image: state.right || ""
-                });
-                setStatus('regStatusBox', `Registration successful! ID: ${response.data.user_id}. You can now login below.`);
-            } catch (err) {
-                setStatus('regStatusBox', err.response?.data?.detail || "An error occurred during registration.", true);
+                if (!name || !id_number || !email || !password) {
+                    return setStatus('regStatusBox', "Please fill all text fields.", true);
+                }
+                if (password.length < 8) {
+                    return setStatus('regStatusBox', "Password must be at least 8 characters (Appwrite requirement).", true);
+                }
+
+                try {
+                    showLoading();
+                    setStatus('regStatusBox', "Processing lecturer registration...");
+                    const result = await registerUser({
+                        role: 'lecturer',
+                        name, idNumber: id_number, email, password
+                    });
+                    setStatus('regStatusBox', `Registration successful! You can now login below.`);
+                    // Logout after registration so they can login fresh
+                    await logoutUser();
+                } catch (err) {
+                    setStatus('regStatusBox', err.message || "Registration failed.", true);
+                } finally {
+                    hideLoading();
+                }
+            } else {
+                const name = document.getElementById('name_student').value;
+                const id_number = document.getElementById('id_number_student_reg').value;
+                const email = document.getElementById('email_student_reg').value;
+                const password = document.getElementById('password_student_reg').value;
+
+                if (!name || !id_number || !email || !password) {
+                    return setStatus('regStatusBox', "Please fill all text fields.", true);
+                }
+                if (password.length < 8) {
+                    return setStatus('regStatusBox', "Password must be at least 8 characters (Appwrite requirement).", true);
+                }
+                if (!studentState.front || !studentState.left || !studentState.right) {
+                    return setStatus('regStatusBox', "Please capture all 3 required face angles.", true);
+                }
+
+                try {
+                    showLoading();
+                    setStatus('regStatusBox', "Extracting face features from captured images...");
+
+                    // Extract and average face descriptors from 3 angles
+                    const faceEncoding = await getAverageFaceDescriptor([
+                        studentState.front,
+                        studentState.left,
+                        studentState.right
+                    ]);
+
+                    setStatus('regStatusBox', "Registering student account...");
+                    const result = await registerUser({
+                        role: 'student',
+                        name, idNumber: id_number, email, password,
+                        faceEncoding
+                    });
+                    setStatus('regStatusBox', `Registration successful! You can now login below.`);
+                    // Logout after registration
+                    await logoutUser();
+                } catch (err) {
+                    setStatus('regStatusBox', err.message || "Registration failed.", true);
+                } finally {
+                    hideLoading();
+                }
             }
         });
 
@@ -323,17 +420,26 @@
             const target_lecturer = document.getElementById('lecturer_id_target').value;
             const password = document.getElementById('password_student').value;
 
-            if (!roll_number || !target_lecturer || !password) return setStatus('studentStatusBox', "Fill all fields.", true);
+            if (!roll_number || !password) return setStatus('studentStatusBox', "Fill Student ID and Password.", true);
 
             try {
-                const response = await axios.post(`${API_URL}/login/student?roll_number=${encodeURIComponent(roll_number)}&password_hash=${encodeURIComponent(password)}`);
-                localStorage.setItem('student_id', response.data.student_id);
-                localStorage.setItem('student_name', response.data.name);
+                showLoading();
+                setStatus('studentStatusBox', "Authenticating...");
+                const student = await loginStudent(roll_number, password);
+
+                // Store in localStorage for attendance page
+                localStorage.setItem('student_doc_id', student.docId);
+                localStorage.setItem('student_name', student.name);
+                localStorage.setItem('student_roll', student.rollNumber);
+                localStorage.setItem('student_face_encoding', student.faceEncoding || '');
                 localStorage.setItem('target_lecturer_id', target_lecturer);
-                setStatus('studentStatusBox', `Login successful! Targeting class for ${target_lecturer}...`);
+
+                setStatus('studentStatusBox', `Login successful! Redirecting...`);
                 setTimeout(() => window.location.href = 'attendance.html', 1000);
             } catch (err) {
-                setStatus('studentStatusBox', err.response?.data?.detail || "Login failed. Check credentials.", true);
+                setStatus('studentStatusBox', err.message || "Login failed. Check credentials.", true);
+            } finally {
+                hideLoading();
             }
         });
 
@@ -347,13 +453,20 @@
             if (!lecturer_id || !password) return setStatus('lecturerStatusBox', "Fill all fields.", true);
 
             try {
-                const response = await axios.post(`${API_URL}/login/lecturer?lecturer_id=${encodeURIComponent(lecturer_id)}&password=${encodeURIComponent(password)}`);
-                localStorage.setItem('lecturer_id', response.data.lecturer_id);
-                localStorage.setItem('lecturer_name', response.data.name);
+                showLoading();
+                setStatus('lecturerStatusBox', "Authenticating...");
+                const lecturer = await loginLecturer(lecturer_id, password);
+
+                localStorage.setItem('lecturer_doc_id', lecturer.docId);
+                localStorage.setItem('lecturer_custom_id', lecturer.lecturerId);
+                localStorage.setItem('lecturer_name', lecturer.name);
+
                 setStatus('lecturerStatusBox', "Authorized! Opening dashboard...");
                 setTimeout(() => window.location.href = 'dashboard.html', 1000);
             } catch (err) {
-                setStatus('lecturerStatusBox', err.response?.data?.detail || "Access denied. Check credentials.", true);
+                setStatus('lecturerStatusBox', err.message || "Access denied. Check credentials.", true);
+            } finally {
+                hideLoading();
             }
         });
     </script>
